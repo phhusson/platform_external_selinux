@@ -1,6 +1,17 @@
 #include "android_common.h"
 #include <packagelistparser/packagelistparser.h>
 
+static const char *const sepolicy_file = "/sepolicy";
+
+static const struct selinux_opt seopts_file_split[] = {
+    { SELABEL_OPT_PATH, "/system/etc/selinux/plat_file_contexts" },
+    { SELABEL_OPT_PATH, "/vendor/etc/selinux/nonplat_file_contexts" }
+};
+
+static const struct selinux_opt seopts_file_rootfs[] = {
+    { SELABEL_OPT_PATH, "/file_contexts.bin" }
+};
+
 /*
  * XXX Where should this configuration file be located?
  * Needs to be accessible by zygote and installd when
@@ -17,7 +28,110 @@ static char const * const seapp_contexts_rootfs[] = {
 	"/nonplat_seapp_contexts"
 };
 
-extern uint8_t fc_digest[FC_DIGEST_SIZE];
+uint8_t fc_digest[FC_DIGEST_SIZE];
+
+static bool compute_file_contexts_hash(uint8_t c_digest[], const struct selinux_opt *opts, unsigned nopts)
+{
+    int fd = -1;
+    void *map = MAP_FAILED;
+    bool ret = false;
+    uint8_t *fc_data = NULL;
+    size_t total_size = 0;
+    struct stat sb;
+    size_t i;
+
+    for (i = 0; i < nopts; i++) {
+        fd = open(opts[i].value, O_CLOEXEC | O_RDONLY);
+        if (fd < 0) {
+            selinux_log(SELINUX_ERROR, "SELinux:  Could not open %s:  %s\n",
+                    opts[i].value, strerror(errno));
+            goto cleanup;
+        }
+
+        if (fstat(fd, &sb) < 0) {
+            selinux_log(SELINUX_ERROR, "SELinux:  Could not stat %s:  %s\n",
+                    opts[i].value, strerror(errno));
+            goto cleanup;
+        }
+
+        map = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+        if (map == MAP_FAILED) {
+            selinux_log(SELINUX_ERROR, "SELinux:  Could not map %s:  %s\n",
+                    opts[i].value, strerror(errno));
+            goto cleanup;
+        }
+
+        fc_data = realloc(fc_data, total_size + sb.st_size);
+        if (!fc_data) {
+            selinux_log(SELINUX_ERROR, "SELinux: Count not re-alloc for %s:  %s\n",
+                     opts[i].value, strerror(errno));
+            goto cleanup;
+        }
+
+        memcpy(fc_data + total_size, map, sb.st_size);
+        total_size += sb.st_size;
+
+        /* reset everything for next file */
+        munmap(map, sb.st_size);
+        close(fd);
+        map = MAP_FAILED;
+        fd = -1;
+    }
+
+    SHA1(fc_data, total_size, c_digest);
+    ret = true;
+
+cleanup:
+    if (map != MAP_FAILED)
+        munmap(map, sb.st_size);
+    if (fd >= 0)
+        close(fd);
+    free(fc_data);
+
+    return ret;
+}
+
+static struct selabel_handle* selinux_android_file_context(const struct selinux_opt *opts,
+                                                    unsigned nopts)
+{
+    struct selabel_handle *sehandle;
+    struct selinux_opt fc_opts[nopts + 1];
+
+    memcpy(fc_opts, opts, nopts*sizeof(struct selinux_opt));
+    fc_opts[nopts].type = SELABEL_OPT_BASEONLY;
+    fc_opts[nopts].value = (char *)1;
+
+    sehandle = selabel_open(SELABEL_CTX_FILE, fc_opts, ARRAY_SIZE(fc_opts));
+    if (!sehandle) {
+        selinux_log(SELINUX_ERROR, "%s: Error getting file context handle (%s)\n",
+                __FUNCTION__, strerror(errno));
+        return NULL;
+    }
+    if (!compute_file_contexts_hash(fc_digest, opts, nopts)) {
+        selabel_close(sehandle);
+        return NULL;
+    }
+
+    selinux_log(SELINUX_INFO, "SELinux: Loaded file_contexts\n");
+
+    return sehandle;
+}
+
+static bool selinux_android_opts_file_exists(const struct selinux_opt *opt)
+{
+    return (access(opt[0].value, R_OK) != -1);
+}
+
+struct selabel_handle* selinux_android_file_context_handle(void)
+{
+    if (selinux_android_opts_file_exists(seopts_file_split)) {
+        return selinux_android_file_context(seopts_file_split,
+                                            ARRAY_SIZE(seopts_file_split));
+    } else {
+        return selinux_android_file_context(seopts_file_rootfs,
+                                            ARRAY_SIZE(seopts_file_rootfs));
+    }
+}
 
 enum levelFrom {
 	LEVELFROM_NONE,
@@ -1453,5 +1567,65 @@ int selinux_android_restorecon_pkgdir(const char *pkgdir,
 void selinux_android_set_sehandle(const struct selabel_handle *hndl)
 {
       fc_sehandle = (struct selabel_handle *) hndl;
+}
+
+int selinux_android_load_policy()
+{
+	int fd = -1;
+
+	fd = open(sepolicy_file, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+	if (fd < 0) {
+		selinux_log(SELINUX_ERROR, "SELinux:  Could not open %s:  %s\n",
+				sepolicy_file, strerror(errno));
+		return -1;
+	}
+	int ret = selinux_android_load_policy_from_fd(fd, sepolicy_file);
+	close(fd);
+	return ret;
+}
+
+int selinux_android_load_policy_from_fd(int fd, const char *description)
+{
+	int rc;
+	struct stat sb;
+	void *map = NULL;
+	static int load_successful = 0;
+
+	/*
+	 * Since updating policy at runtime has been abolished
+	 * we just check whether a policy has been loaded before
+	 * and return if this is the case.
+	 * There is no point in reloading policy.
+	 */
+	if (load_successful){
+	  selinux_log(SELINUX_WARNING, "SELinux: Attempted reload of SELinux policy!/n");
+	  return 0;
+	}
+
+	set_selinuxmnt(SELINUXMNT);
+	if (fstat(fd, &sb) < 0) {
+		selinux_log(SELINUX_ERROR, "SELinux:  Could not stat %s:  %s\n",
+				description, strerror(errno));
+		return -1;
+	}
+	map = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+	if (map == MAP_FAILED) {
+		selinux_log(SELINUX_ERROR, "SELinux:  Could not map %s:  %s\n",
+				description, strerror(errno));
+		return -1;
+	}
+
+	rc = security_load_policy(map, sb.st_size);
+	if (rc < 0) {
+		selinux_log(SELINUX_ERROR, "SELinux:  Could not load policy:  %s\n",
+				strerror(errno));
+		munmap(map, sb.st_size);
+		return -1;
+	}
+
+	munmap(map, sb.st_size);
+	selinux_log(SELINUX_INFO, "SELinux: Loaded policy from %s\n", description);
+	load_successful = 1;
+	return 0;
 }
 

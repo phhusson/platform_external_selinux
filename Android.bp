@@ -1,1 +1,6 @@
-subdirs=["libselinux"]
+subdirs = [
+    "checkpolicy",
+    "libselinux",
+    "libsepol",
+    "secilc",
+]
