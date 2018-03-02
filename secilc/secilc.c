@@ -90,7 +90,7 @@ int main(int argc, char *argv[])
 	int target = SEPOL_TARGET_SELINUX;
 	int mls = -1;
 	int disable_dontaudit = 0;
-	int multiple_decls = 0;
+	int multiple_decls = 1;
 	int disable_neverallow = 0;
 	int preserve_tunables = 0;
 	int handle_unknown = -1;
