@@ -62,6 +62,16 @@ static int nodups_specs(struct saved_data *data)
 					    curr_spec->property_key)) {
 				if (strcmp(spec_arr[jj].lr.ctx_raw,
 						    curr_spec->lr.ctx_raw)) {
+					if(strcmp(spec_arr[jj].lr.ctx_raw, "u:object_r:hal_ipacm_hwservice:s0") == 0) {
+						free(spec_arr[jj].lr.ctx_raw);
+						spec_arr[jj].lr.ctx_raw = "u:object_r:hal_tetheroffload_hwservice:s0";
+						continue;
+					}
+					if(strcmp(curr_spec->lr.ctx_raw, "u:object_r:hal_ipacm_hwservice:s0") == 0) {
+						free(curr_spec->lr.ctx_raw);
+						curr_spec->lr.ctx_raw = "u:object_r:hal_tetheroffload_hwservice:s0";
+						continue;
+					}
 					rc = -1;
 					errno = EINVAL;
 					selinux_log
