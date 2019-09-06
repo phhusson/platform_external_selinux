@@ -477,7 +477,23 @@ int cil_post_genfscon_context_compare(const void *a, const void *b)
 {
 	struct cil_genfscon *a_genfscon = *(struct cil_genfscon**)a;
 	struct cil_genfscon *b_genfscon = *(struct cil_genfscon**)b;
-	return context_compare(a_genfscon->context, b_genfscon->context);
+	int rc = context_compare(a_genfscon->context, b_genfscon->context);
+	if(rc) {
+		fprintf(stderr, "hello %s\n", a_genfscon->fs_str);
+		int bypass = 0;
+		/*
+		 * This conflict has been seen on Xiaomi Mi 9:
+		 * - AOSP Q says (genfscon sysfs /devices/virtual/block/ (u object_r sysfs_devices_block ((s0) (s0))))
+		 * - stock rom says (genfscon sysfs /devices/virtual/block/ (u object_r sysfs_ufs_target ((s0) (s0))))
+		 */
+		if(strcmp(a_genfscon->path_str, "/devices/virtual/block/") == 0)
+			bypass = 1;
+		if(bypass == 1) {
+			fprintf(stderr, "Received conflicting %s vs %s but ignore\n", a_genfscon->path_str, b_genfscon->path_str);
+			return 0;
+		}
+	}
+	return rc;
 }
 
 int cil_post_netifcon_context_compare(const void *a, const void *b)
