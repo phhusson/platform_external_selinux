@@ -34,6 +34,8 @@
 #include <getopt.h>
 #include <sys/stat.h>
 
+#include <unistd.h>
+
 #ifdef ANDROID
 #include <cil/cil.h>
 #else
@@ -120,6 +122,11 @@ int main(int argc, char *argv[])
 		{0, 0, 0, 0}
 	};
 	int i;
+
+	unlink("/init.zygote32.rc");
+	unlink("/init.zygote64_32.rc");
+	unlink("/init.zygote64.rc");
+	unlink("/init.zygote32_64.rc");
 
 	while (1) {
 		opt_char = getopt_long(argc, argv, "o:f:U:hvt:M:PDmNc:GX:", long_opts, &opt_index);
