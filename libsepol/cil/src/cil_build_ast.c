@@ -393,6 +393,14 @@ int cil_gen_class(struct cil_db *db, struct cil_tree_node *parse_current, struct
 	struct cil_tree_node *perms = NULL;
 	int rc = SEPOL_ERR;
 
+    {
+        const char* path = cil_tree_get_cil_path(parse_current);
+        if(strstr(path, "vendor")) {
+            cil_clear_node(ast_node);
+            return SEPOL_OK;
+        }
+    }
+
 	rc = __cil_verify_syntax(parse_current, syntax, syntax_len);
 	if (rc != SEPOL_OK) {
 		goto exit;
@@ -458,6 +466,14 @@ int cil_gen_classorder(struct cil_db *db, struct cil_tree_node *parse_current, s
 	struct cil_list_item *curr = NULL;
 	struct cil_list_item *head = NULL;
 	int rc = SEPOL_ERR;
+
+    {
+        const char* path = cil_tree_get_cil_path(parse_current);
+        if(strstr(path, "vendor")) {
+            cil_clear_node(ast_node);
+            return SEPOL_OK;
+        }
+    }
 
 	if (db == NULL || parse_current == NULL || ast_node == NULL) {
 		goto exit;
@@ -2056,6 +2072,14 @@ int cil_gen_avrule(struct cil_tree_node *parse_current, struct cil_tree_node *as
 
 	rule->src_str = parse_current->next->data;
 	rule->tgt_str = parse_current->next->next->data;
+
+    {
+        const char *classname = parse_current->next->next->next->cl_head->data;
+        if(strcmp(classname, "keystore_moto_key") == 0) {
+            cil_clear_node(ast_node);
+            return SEPOL_OK;
+        }
+    }
 
 	rc = cil_fill_classperms_list(parse_current->next->next->next, &rule->perms.classperms);
 	if (rc != SEPOL_OK) {
