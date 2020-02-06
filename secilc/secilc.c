@@ -34,7 +34,7 @@
 #include <getopt.h>
 #include <sys/stat.h>
 
-#include <unistd.h>
+#include <sys/mount.h>
 
 #ifdef ANDROID
 #include <cil/cil.h>
@@ -123,10 +123,10 @@ int main(int argc, char *argv[])
 	};
 	int i;
 
-	unlink("/init.zygote32.rc");
-	unlink("/init.zygote64_32.rc");
-	unlink("/init.zygote64.rc");
-	unlink("/init.zygote32_64.rc");
+	mount("/system/etc/init/zygote/init.zygote32.rc", "/init.zygote32.rc", "none", MS_BIND, "");
+	mount("/system/etc/init/zygote/init.zygote64_32.rc", "/init.zygote64_32.rc", "none", MS_BIND, "");
+	mount("/system/etc/init/zygote/init.zygote64.rc", "/init.zygote64.rc", "none", MS_BIND, "");
+	mount("/system/etc/init/zygote/init.zygote32_64.rc", "/init.zygote32_64.rc", "none", MS_BIND, "");
 
 	while (1) {
 		opt_char = getopt_long(argc, argv, "o:f:U:hvt:M:PDmNc:GX:", long_opts, &opt_index);
