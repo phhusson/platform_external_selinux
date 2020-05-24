@@ -488,6 +488,10 @@ int cil_post_genfscon_context_compare(const void *a, const void *b)
 		 */
 		if(strcmp(a_genfscon->path_str, "/devices/virtual/block/") == 0)
 			bypass = 1;
+		if(strcmp(a_genfscon->fs_str, "exfat") == 0 || strcmp(a_genfscon->fs_str, "esdfs") == 0) {
+            if(strcmp(a_genfscon->path_str, "/") == 0)
+                bypass = 1;
+        }
 		if(bypass == 1) {
 			fprintf(stderr, "Received conflicting %s vs %s but ignore\n", a_genfscon->path_str, b_genfscon->path_str);
 			return 0;
