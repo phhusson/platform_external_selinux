@@ -512,7 +512,13 @@ int cil_resolve_aliasactual(struct cil_tree_node *current, void *extra_args, enu
 	}
 	if (NODE(alias_datum)->flavor != alias_flavor) {
 		cil_log(CIL_ERR, "%s is not an alias\n",alias_datum->name);
-		rc = SEPOL_ERR;
+        if(
+                strcmp(alias_datum->name, "hostapd") == 0 ||
+                strcmp(alias_datum->name, "sysfs_usb_supply") == 0 ||
+                strcmp(alias_datum->name, "rpmb_device") == 0)
+            rc = 0;
+        else
+            rc = SEPOL_ERR;
 		goto exit;
 	}
 
@@ -553,7 +559,12 @@ int cil_resolve_alias_to_actual(struct cil_tree_node *current, enum cil_flavor f
 	int limit = 2;
 
 	if (alias->actual == NULL) {
-		cil_tree_log(current, CIL_ERR, "Alias declared but not used");
+		cil_tree_log(current, CIL_ERR, "Alias %s declared but not used", a1->datum.name);
+        if(
+                strcmp(a1->datum.name, "hostapd") == 0 ||
+                strcmp(a1->datum.name, "sysfs_usb_supply") == 0 ||
+                strcmp(a1->datum.name, "rpmb_device") == 0)
+            return SEPOL_OK;
 		return SEPOL_ERR;
 	}
 

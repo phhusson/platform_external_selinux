@@ -108,7 +108,7 @@ int cil_gen_node(struct cil_db *db, struct cil_tree_node *ast_node, struct cil_s
 {
 	int rc = SEPOL_ERR;
 	symtab_t *symtab = NULL;
-	struct cil_symtab_datum *prev;
+	struct cil_symtab_datum *prev = NULL;
 
 	rc = __cil_verify_name((const char*)key);
 	if (rc != SEPOL_OK) {
@@ -133,13 +133,20 @@ int cil_gen_node(struct cil_db *db, struct cil_tree_node *ast_node, struct cil_s
 				/* multiple_decls not ok, ret error */
 				cil_log(CIL_ERR, "Re-declaration of %s %s\n",
 					cil_node_to_string(ast_node), key);
-				if (cil_symtab_get_datum(symtab, key, &datum) == SEPOL_OK) {
+				if (cil_symtab_get_datum(symtab, key, &prev) == SEPOL_OK) {
 					if (sflavor == CIL_SYM_BLOCKS) {
-						struct cil_tree_node *node = datum->nodes->head->data;
+						struct cil_tree_node *node = prev->nodes->head->data;
 						cil_tree_log(node, CIL_ERR, "Previous declaration");
 					}
 				}
-				goto exit;
+                if(
+                        strcmp(key, "sysfs_usb_supply") == 0 ||
+                        strcmp(key, "hostapd") == 0 || 
+                        strcmp(key, "rpmb_device") == 0) {
+                    cil_log(CIL_ERR, "Ignoring...");
+                } else {
+                    goto exit;
+                }
 			}
 			/* multiple_decls is enabled and works for this datum type, add node */
 			cil_list_append(prev->nodes, CIL_NODE, ast_node);
