@@ -515,13 +515,17 @@ int cil_typealias_to_policydb(policydb_t *pdb, struct cil_alias *cil_alias)
 	type_datum_init(sepol_alias);
 
 	rc = __cil_get_sepol_type_datum(pdb, DATUM(cil_alias->actual), &sepol_type);
-	if (rc != SEPOL_OK) goto exit;
+	if (rc != SEPOL_OK) {
+        cil_log(CIL_ERR, "Failed at %s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__);
+        goto exit;
+    }
 
 	sepol_alias->flavor = TYPE_TYPE;
 
 	key = cil_strdup(cil_alias->datum.fqn);
 	rc = symtab_insert(pdb, SYM_TYPES, key, sepol_alias, SCOPE_DECL, 0, NULL);
 	if (rc != SEPOL_OK) {
+        cil_log(CIL_ERR, "Failed at %s:%s:%d:%d\n", __FILE__, __FUNCTION__, __LINE__, rc);
 		goto exit;
 	}
 	sepol_alias->s.value = sepol_type->s.value;
@@ -3776,7 +3780,7 @@ int __cil_node_to_policydb(struct cil_tree_node *node, void *extra_args)
 
 exit:
 	if (rc != SEPOL_OK) {
-		cil_tree_log(node, CIL_ERR, "Binary policy creation failed");
+		cil_tree_log(node, CIL_ERR, "Binary policy creation failed, for pass = %d, flavor = %d", pass, node->flavor);
 	}
 	return rc;
 }
